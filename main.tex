@@ -1,0 +1,89 @@
+% --------------------------------------------------------------
+% This is all preamble stuff that you don't have to worry about.
+% Head down to where it says "Start here"
+% --------------------------------------------------------------
+ 
+\documentclass[12pt]{article}
+ 
+\usepackage[margin=1in]{geometry} 
+\usepackage{amsmath,amsthm,amssymb}
+ 
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\Z}{\mathbb{Z}}
+ 
+\newenvironment{theorem}[2][Theorem]{\begin{trivlist}
+\item[\hskip \labelsep {\bfseries #1}\hskip \labelsep {\bfseries #2.}]}{\end{trivlist}}
+\newenvironment{lemma}[2][Lemma]{\begin{trivlist}
+\item[\hskip \labelsep {\bfseries #1}\hskip \labelsep {\bfseries #2.}]}{\end{trivlist}}
+\newenvironment{exercise}[2][Exercise]{\begin{trivlist}
+\item[\hskip \labelsep {\bfseries #1}\hskip \labelsep {\bfseries #2.}]}{\end{trivlist}}
+\newenvironment{problem}[2][Problem]{\begin{trivlist}
+\item[\hskip \labelsep {\bfseries #1}\hskip \labelsep {\bfseries #2.}]}{\end{trivlist}}
+\newenvironment{question}[2][Question]{\begin{trivlist}
+\item[\hskip \labelsep {\bfseries #1}\hskip \labelsep {\bfseries #2.}]}{\end{trivlist}}
+\newenvironment{corollary}[2][Corollary]{\begin{trivlist}
+\item[\hskip \labelsep {\bfseries #1}\hskip \labelsep {\bfseries #2.}]}{\end{trivlist}}
+
+\newenvironment{solution}{\begin{proof}[Solution]}{\end{proof}}
+ 
+\begin{document}
+ 
+% --------------------------------------------------------------
+%                         Start here
+% --------------------------------------------------------------
+ 
+\title{ MCU }
+\author{Group 5\\ %replace with your name
+Explanation MCU code}
+\section{Programming MCU}
+\subsection{Introduction}
+As mentioned before, the microcontroller is used to digitize the conditioned analogue signal from the opamp output. Apart from that, the MCU also translates the digital signal into the right protocol so that our LCD and signal transmission devices receive a readable signal for their purpose. With signal transmission devices the wired and wireless transmission circuits are meant.\\
+
+\noindent The used MCU is a PIC12F683 chip, which can be programmed via the Microcode Studio software package. The PIC12F683 chip has 8 pins, of which 2 serve for the power supply and 6 are general purpose ports which can be assigned to fulfil a desired function. As mentioned before, Figure 11 displays the pin layout of the MCU as well as the pin assignments chosen for this project.
+
+\subsection{Initialization}
+
+With the ’ANSEL’ command, all the pins except for GP2 are set to function as digital ports. The GP2-port is the one that receives the analogue signal from the opamp. \\
+
+\noindent The ’TRISIO’ command allows to assign ports as input or output, so only GP2 is assigned as input. \\
+
+\noindent The internal oscillator is set to 8MHz with the command ’OSCCON’ and the comparator function is disabled with ’CMCON0’, as it is not used for this project.\\
+
+\noindent The ’ADCON’ registers are used to control the operation of the ADC. The sixth bit determines the voltage reference and the seventh bit determines if the result is left or right justified.\\
+
+\noindent Analogue to digital conversion is set to 10 bits and its sampling time is 50ms. 
+
+\subsection{Variables}
+
+The pin configuration in the code is set up as shown in Figure 11. The next four constants are declared to make the output protocols work. The numbers 4800 and 9600 refer to the baud rates and P and N indicate whether or not the signal is inverted.\\
+
+\noindent The constants I and CLR are used in the program respectively to put the LCD screen in command mode and to clear the screen. The rest of the variables serve to scale the data sent to the PC, as the PC only receives a 3-digit number.
+
+\subsection{Program}
+
+
+The program consists of 3 parts: the ’Main’ commands, the commands for the LCD display and the commands for the data transmission to the PC.\\
+
+\noindent In the main program, first ’ADCIN’ is used to convert the analogue input signal at GP2 to a digital signal which is stored in the variable ’meas’. This is done by dividing the voltage range (0V - reference voltage) in 210 = 1024 intervals. Every interval correspond with a bit number. When the sampled signal corresponds to a certain interval, the resulting digital value will be bit number corresponding to this interval.\\
+
+\noindent The variable ’volt’ is a scaled version of the digital measurement value ’meas’. This is done to get a voltage on the screen which we manually can convert to the measured distance using the output characteristic of the sensor in Figure 6. Note that the notation ’*/’ means ’middle 16 Bits of multiplication’. With this command, ’meas’ is first multiplied with ’scaling’ and consequently divided by 256. The result is the voltage in mV as illustrated in the equation below. (don't exactly know what is means...)\\
+
+\begin{equation}
+    volt = \dfrac{meas \cdot ... }{scaling} = meas\cdot \dfrac{1250}{256} = meas \cdot \dfrac{5}{1024} \cdot 1000
+\end{equation}\\
+
+\noindent According to the data sheet of the Sharp GP2D12 analog IR sensor, its maximum output voltage is 2.8V. In order to make use of the full resolution of the MCU (5 volts), the sensor output signal is amplified with a factor 1.75 by the amplifier circuit as explained above. If the signal then is converted to 10 bit, 4-digit values are obtained for the voltages closest to 5V. Because the data transmission only sends a 3-digit number, the variable ’pcdata’ is created. The arbitrary chosen value of 60 is subtracted of the variable ’meas’ to create a 3-digit number. Once transmitted to the PC, the calibration of the system in the processing software eliminates the effect of the subtraction to the final result. No data will be lost by this manipulation, as the lowest output voltage of the sensor is 0.25 volts, which corresponds to a bit value of 89 once converted.\\
+
+\noindent The LCD part of the program sends the measured data to the screen. The measurement is sent as a 10 bit number to the first line and in millivolts to the second line of the LCD screen. Depending on the type of LCD screen, different protocols may be necessary. This code is built for an N9600 protocol screen. After the LCD part is completed the main program redirects to the PC part.\\
+
+\noindent The PC part of the program transmits the data to the PC. As can be found in the data sheet of the transmitter module, its preprogrammed MCU wants to receive a signal according to the N4800 protocol. The optocoupler in the wired transmission circuit inverts the signal once, so we program our MCU to pre-invert the signal sent to the optocoupler. For the wire- less connection the signal can just be sent in the N4800 protocol, no extra inversion is needed. Before sending the data to the wireless transmitter, a ’pulsout’ signal is sent to wake it up. The ’pulsout’ command generates a pulse with a given duration (1500 ms) on the selected output pin to initialize the wireless channel.\\
+
+\noindent After this part the program begins again at Main and runs in an infinite loop. For clarity the entire PICBasic code is included in the appendices.
+
+
+ 
+% --------------------------------------------------------------
+%     You don't have to mess with anything below this line.
+% --------------------------------------------------------------
+ 
+\end{document}
